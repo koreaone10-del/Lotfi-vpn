@@ -1,4 +1,7 @@
-<resources><string name="app_name">Lotfi VPN</string></resources>
+<resources><string name="app_name">Lotfi VPN</string>
+
     <string name="app_description">مساحة ذكية لإدارة ملفات الاتصال والشبكة</string>
     <string name="status_disconnected">غير متصل</string>
     <string name="starter_notice">هذه نسخة إدارة اتصالات تجريبية. لا يوجد محرك VPN فعلي مفعّل حالياً.</string>
+
+</resources>
