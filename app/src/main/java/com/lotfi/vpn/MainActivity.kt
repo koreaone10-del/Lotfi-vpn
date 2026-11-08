@@ -1,290 +1,239 @@
 package com.lotfi.vpn
 
-import android.app.Activity
-import android.app.AlertDialog
-import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Bundle
-import android.view.Gravity
-import android.view.View
-import android.widget.*
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
-data class ServerProfile(val id: Long, val name: String, val provider: String,
-                         val host: String, val port: Int, val protocol: String)
+private val Night = Color(0xFF090D19)
+private val Panel = Color(0xFF151C2E)
+private val Teal = Color(0xFF00D6C9)
+private val Violet = Color(0xFF8B7CFF)
+private val Muted = Color(0xFF9AA6BD)
 
-class MainActivity : Activity() {
-    private val prefs by lazy { getSharedPreferences("lotfi_workspace", Context.MODE_PRIVATE) }
-    private lateinit var root: LinearLayout
-    private lateinit var profileList: LinearLayout
-    private lateinit var logs: LinearLayout
-    private lateinit var networkText: TextView
-    private lateinit var countText: TextView
-    private val bg = Color.rgb(9, 13, 24)
-    private val cardColor = Color.rgb(19, 27, 45)
-    private val raised = Color.rgb(29, 39, 62)
-    private val purple = Color.rgb(139, 124, 255)
-    private val cyan = Color.rgb(58, 210, 220)
-    private val white = Color.rgb(241, 244, 255)
-    private val muted = Color.rgb(151, 164, 190)
-
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
-        val scroll = ScrollView(this).apply { setBackgroundColor(bg); isFillViewport = true }
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(22), dp(18), dp(28))
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
-        }
-        scroll.addView(root)
-        setContentView(scroll)
-
-        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(text("LOTFI VPN", 12, cyan, true))
-        titles.addView(text("مركز التحكم", 28, white, true))
-        titles.addView(text("إدارة ملفات الاتصال وحالة الشبكة", 13, muted))
-        head.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
-        head.addView(text("PRO", 12, white, true).apply {
-            gravity = Gravity.CENTER; setPadding(dp(14), dp(8), dp(14), dp(8)); background = shape(purple, 30)
-        })
-        root.addView(head)
-        gap(20)
-
-        val hero = card()
-        hero.addView(text("حالة خدمة VPN", 14, muted, true))
-        hero.addView(text("المحرك غير مهيأ", 23, white, true))
-        hero.addView(text("هذه النسخة تدير ملفات الخوادم محلياً، ولا تنشئ نفق VPN فعلياً.", 13, muted))
-        val info = button("معلومات المحرك", purple)
-        info.setOnClickListener {
-            AlertDialog.Builder(this).setTitle("محرك VPN")
-                .setMessage("لم تتم إضافة محرك اتصال بعد. لن يعرض التطبيق اتصالاً وهمياً ولن يغيّر مسار حركة الإنترنت. يلزم محرك بروتوكول موثوق وخادم تملكه أو لديك إذن باستخدامه.")
-                .setPositiveButton("حسناً", null).show()
-        }
-        hero.addView(info)
-        root.addView(hero)
-        gap(12)
-
-        val stats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val netCard = card()
-        netCard.addView(text("الشبكة الحالية", 12, muted))
-        networkText = text("جارٍ الفحص", 18, cyan, true)
-        netCard.addView(networkText)
-        val profCard = card()
-        profCard.addView(text("ملفات محفوظة", 12, muted))
-        countText = text("0", 18, purple, true)
-        profCard.addView(countText)
-        stats.addView(netCard, LinearLayout.LayoutParams(0, -2, 1f))
-        stats.addView(View(this), LinearLayout.LayoutParams(dp(10), 1))
-        stats.addView(profCard, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(stats)
-        gap(20)
-
-        root.addView(text("ملفات الاتصال", 19, white, true))
-        root.addView(text("أضف بيانات خادم مصرح لك باستخدامه", 12, muted))
-        val add = button("+ إضافة ملف اتصال", purple)
-        add.setOnClickListener { profileDialog(null) }
-        root.addView(add)
-        val refresh = button("تحديث حالة الشبكة", raised)
-        refresh.setOnClickListener { refreshAll(); log("تم تحديث حالة الشبكة") }
-        root.addView(refresh)
-        gap(8)
-
-        profileList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(profileList)
-        gap(18)
-
-        root.addView(text("سجل النشاط", 19, white, true))
-        root.addView(text("أحداث محلية داخل التطبيق", 12, muted))
-        logs = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(logs)
-        val clear = button("مسح السجل", raised)
-        clear.setOnClickListener { prefs.edit().remove("logs").apply(); renderLogs(); log("تم مسح السجل") }
-        root.addView(clear)
-        gap(18)
-        root.addView(text("Lotfi VPN Workspace • الإصدار 1.1.0", 11, muted).apply { gravity = Gravity.CENTER })
-        log("تم تشغيل مساحة العمل")
-        refreshAll()
+        val store = ProfileStore(this)
+        setContent { LotfiTheme { App(store) } }
     }
+}
 
-    private fun refreshAll() {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val n = cm.activeNetwork
-        val c = if (n != null) cm.getNetworkCapabilities(n) else null
-        networkText.text = when {
-            c == null -> "غير متصل"
-            c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi‑Fi"
-            c.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "بيانات الهاتف"
-            c.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
-            else -> "متصل"
-        }
-        val list = loadProfiles()
-        countText.text = list.size.toString()
-        renderProfiles(list)
-        renderLogs()
-    }
+@Composable
+private fun LotfiTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = darkColorScheme(primary=Teal, secondary=Violet, background=Night,
+        surface=Panel, onPrimary=Night, onBackground=Color.White, onSurface=Color.White), content=content)
+}
 
-    private fun renderProfiles(items: List<ServerProfile>) {
-        profileList.removeAllViews()
-        if (items.isEmpty()) {
-            val empty = card()
-            empty.addView(text("لا توجد ملفات محفوظة حالياً", 15, white, true))
-            empty.addView(text("اضغط «إضافة ملف اتصال» لتسجيل بيانات خادمك.", 12, muted))
-            profileList.addView(empty)
-            return
-        }
-        items.forEach { p ->
-            val box = card()
-            box.addView(text(p.name, 16, white, true))
-            box.addView(text("${p.provider} • ${p.protocol}", 12, cyan))
-            box.addView(text("${p.host}:${p.port}", 13, muted))
-            val edit = button("تعديل الملف", raised)
-            edit.setOnClickListener { profileDialog(p) }
-            box.addView(edit)
-            val del = button("حذف الملف", Color.rgb(76, 36, 53))
-            del.setOnClickListener {
-                AlertDialog.Builder(this).setTitle("حذف الملف")
-                    .setMessage("حذف «${p.name}» من هذا الجهاز؟")
-                    .setNegativeButton("إلغاء", null)
-                    .setPositiveButton("حذف") { _, _ ->
-                        saveProfiles(loadProfiles().filterNot { it.id == p.id })
-                        log("تم حذف الملف: ${p.name}")
-                        refreshAll()
-                    }.show()
+@Composable
+private fun App(store: ProfileStore) {
+    var tab by remember { mutableIntStateOf(0) }
+    var profiles by remember { mutableStateOf(store.load()) }
+    var host by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("443") }
+    var result by remember { mutableStateOf("أدخل نطاقاً أو خادماً تملك الإذن بفحصه.") }
+    var busy by remember { mutableStateOf(false) }
+    var update by remember { mutableStateOf("لم يتم فحص التحديثات بعد.") }
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111A32),Night,Color(0xFF070A12))))) {
+        Header()
+        NavigationBar(containerColor=Color(0xFF101729)) {
+            val labels=listOf("الرئيسية","الخوادم","مختبر الشبكة","المزيد")
+            val icons=listOf(Icons.Default.Dashboard,Icons.Default.Dns,Icons.Default.NetworkCheck,Icons.Default.Settings)
+            labels.forEachIndexed { i,label ->
+                NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icons[i],label)},
+                    label={Text(label,fontSize=10.sp)},
+                    colors=NavigationBarItemDefaults.colors(selectedIconColor=Teal,selectedTextColor=Teal,
+                        indicatorColor=Color(0xFF203449),unselectedIconColor=Muted,unselectedTextColor=Muted))
             }
-            box.addView(del)
-            profileList.addView(box)
-            gapIn(profileList, 8)
+        }
+        when(tab) {
+            0 -> Home(profiles.size,update,{scope.launch { update="جارٍ التحقق..."; update=UpdateChecker.check() }},{tab=1},{tab=2})
+            1 -> Servers(profiles,{n,p,e -> profiles=profiles+ServerProfile(System.currentTimeMillis().toString(),n,p,e);store.save(profiles)},
+                {id -> profiles=profiles.filterNot{it.id==id};store.save(profiles)})
+            2 -> Lab(host,{host=it},port,{port=it},result,busy) {
+                scope.launch { busy=true; result=NetworkDiagnostics.test(host.trim(),port.toIntOrNull()?:443);busy=false }
+            }
+            else -> More(update) { scope.launch { update="جارٍ التحقق...";update=UpdateChecker.check() } }
         }
     }
+}
 
-    private fun profileDialog(old: ServerProfile?) {
-        val form = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(4), dp(18), dp(4))
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+@Composable
+private fun Header() {
+    Row(Modifier.fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).background(Brush.linearGradient(listOf(Teal,Violet)),RoundedCornerShape(15.dp)),contentAlignment=Alignment.Center) {
+                Icon(Icons.Default.Shield,null,tint=Night,modifier=Modifier.size(29.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("LOTFI VPN",fontSize=20.sp,fontWeight=FontWeight.Black,letterSpacing=1.5.sp)
+                Text("ULTIMATE • NETWORK CONTROL",color=Muted,fontSize=9.sp,letterSpacing=1.sp)
+            }
         }
-        fun field(hint: String, value: String = "") = EditText(this).apply {
-            this.hint = hint; setSingleLine(true); setText(value)
-            setTextColor(white); setHintTextColor(muted); background = shape(raised, 10)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            textDirection = View.TEXT_DIRECTION_LTR
-        }
-        val name = field("اسم الملف", old?.name ?: "")
-        val host = field("عنوان الخادم Host", old?.host ?: "")
-        val port = field("المنفذ Port", old?.port?.toString() ?: "443")
-        val provider = spinner(listOf("مخصص", "Djezzy", "Mobilis", "Ooredoo"), old?.provider ?: "مخصص")
-        val protocol = spinner(listOf("WireGuard", "OpenVPN", "SSH", "V2Ray / Xray", "WebSocket"), old?.protocol ?: "WireGuard")
-        listOf(name, host, port).forEach { e ->
-            form.addView(e, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(8) })
-        }
-        form.addView(text("المزود", 12, muted)); form.addView(provider)
-        form.addView(text("نوع البروتوكول", 12, muted)); form.addView(protocol)
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(if (old == null) "إضافة ملف اتصال" else "تعديل ملف الاتصال")
-            .setView(form).setNegativeButton("إلغاء", null).setPositiveButton("حفظ", null).create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val n = name.text.toString().trim()
-                val h = host.text.toString().trim()
-                val p = port.text.toString().trim().toIntOrNull()
-                if (n.isBlank() || h.isBlank() || p == null || p !in 1..65535) {
-                    Toast.makeText(this, "تحقق من الاسم والخادم والمنفذ (1–65535)", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
+        Text("v1.0",color=Teal,fontSize=11.sp)
+    }
+}
+
+@Composable
+private fun Home(count:Int, update:String, check:()->Unit, servers:()->Unit, lab:()->Unit) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        item {
+            Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF1B2944)),shape=RoundedCornerShape(24.dp)) {
+                Column(Modifier.padding(22.dp)) {
+                    Text("تحكّم في اتصالك",fontSize=24.sp,fontWeight=FontWeight.Bold)
+                    Text("إدارة ملفات الخوادم وتشخيص الشبكة من مكان واحد.",color=Muted,fontSize=13.sp)
+                    Spacer(Modifier.height(15.dp))
+                    Text("محرك النفق غير مفعّل في هذه النسخة",color=Teal,fontSize=12.sp,fontWeight=FontWeight.Bold)
+                    Text("لا ننشئ اتصالاً وهمياً؛ دمج المحرك الحقيقي هو المرحلة التالية.",color=Muted,fontSize=11.sp)
                 }
-                val item = ServerProfile(old?.id ?: System.currentTimeMillis(), n,
-                    provider.selectedItem.toString(), h, p, protocol.selectedItem.toString())
-                val all = loadProfiles().toMutableList()
-                val ix = all.indexOfFirst { it.id == item.id }
-                if (ix >= 0) all[ix] = item else all.add(item)
-                saveProfiles(all)
-                log(if (old == null) "تمت إضافة الملف: $n" else "تم تعديل الملف: $n")
-                dialog.dismiss()
-                refreshAll()
             }
         }
-        dialog.show()
+        item {
+            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Metric("الملفات المحفوظة",count.toString(),Modifier.weight(1f))
+                Metric("حالة التطبيق","جاهز",Modifier.weight(1f))
+            }
+        }
+        item { Text("أدوات سريعة",fontSize=16.sp,fontWeight=FontWeight.Bold) }
+        item {
+            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                QuickCard("إدارة الخوادم","إضافة ملف اتصال",Icons.Default.Storage,servers,Modifier.weight(1f))
+                QuickCard("مختبر الشبكة","DNS و TCP",Icons.Default.NetworkCheck,lab,Modifier.weight(1f))
+            }
+        }
+        item {
+            Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("التحديثات",fontWeight=FontWeight.Bold)
+                    Text(update,color=Muted,fontSize=11.sp)
+                    Button(onClick=check,modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Refresh,null);Spacer(Modifier.width(8.dp));Text("فحص تحديثات GitHub") }
+                }
+            }
+        }
+        item { Text("الفحوصات مخصصة للخوادم التي تملكها أو لديك إذن باختبارها.",color=Muted,fontSize=10.sp) }
     }
+}
 
-    private fun spinner(options: List<String>, selected: String): Spinner {
-        return Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, options)
-            setSelection(options.indexOf(selected).coerceAtLeast(0))
+@Composable
+private fun Metric(title:String,value:String,modifier:Modifier) {
+    Card(modifier,colors=CardDefaults.cardColors(containerColor=Panel)) {
+        Column(Modifier.padding(16.dp)) { Text(value,fontSize=22.sp,fontWeight=FontWeight.Bold);Text(title,color=Muted,fontSize=11.sp) }
+    }
+}
+
+@Composable
+private fun QuickCard(title:String,sub:String,icon:androidx.compose.ui.graphics.vector.ImageVector,click:()->Unit,modifier:Modifier) {
+    Card(onClick=click, modifier=modifier, colors=CardDefaults.cardColors(containerColor=Panel)) {
+        Column(Modifier.padding(15.dp)) { Icon(icon,null,tint=Violet);Spacer(Modifier.height(10.dp));Text(title,fontWeight=FontWeight.Bold);Text(sub,color=Muted,fontSize=10.sp) }
+    }
+}
+
+@Composable
+private fun Servers(items:List<ServerProfile>,add:(String,String,String)->Unit,remove:(String)->Unit) {
+    var name by remember { mutableStateOf("") }
+    var endpoint by remember { mutableStateOf("") }
+    var protocol by remember { mutableStateOf("WireGuard") }
+    var expanded by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().padding(18.dp)) {
+        Text("إدارة الخوادم",fontSize=23.sp,fontWeight=FontWeight.Bold)
+        Text("أضف بيانات خادم مصرح لك باستخدامه.",color=Muted,fontSize=12.sp)
+        Spacer(Modifier.height(12.dp))
+        Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+            Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name,{name=it},label={Text("اسم الخادم")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(endpoint,{endpoint=it},label={Text("العنوان أو النطاق")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                Box {
+                    OutlinedButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text("البروتوكول: $protocol")}
+                    DropdownMenu(expanded,{expanded=false}) {
+                        listOf("WireGuard","OpenVPN","Xray","SSH").forEach { DropdownMenuItem(text={Text(it)},onClick={protocol=it;expanded=false}) }
+                    }
+                }
+                Button(onClick={
+                    if(name.isBlank()||endpoint.isBlank()) message="أكمل الاسم والعنوان."
+                    else { add(name.trim(),protocol,endpoint.trim());name="";endpoint="";message="تم حفظ بيانات الخادم." }
+                },modifier=Modifier.fillMaxWidth()){Text("＋  حفظ الخادم")}
+                if(message.isNotBlank()) Text(message,color=Teal,fontSize=11.sp)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("الخوادم المحفوظة (${items.size})",fontWeight=FontWeight.Bold)
+        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            items(items,key={it.id}) { p ->
+                Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                        Icon(Icons.Default.Dns,null,tint=Teal);Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);Text("${p.protocol} • ${p.endpoint}",color=Muted,fontSize=10.sp)}
+                        IconButton(onClick={remove(p.id)}){Icon(Icons.Default.DeleteOutline,null,tint=Color(0xFFFF7185))}
+                    }
+                }
+            }
         }
     }
+}
 
-    private fun loadProfiles(): List<ServerProfile> = try {
-        val a = JSONArray(prefs.getString("profiles", "[]"))
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            ServerProfile(o.optLong("id"), o.optString("name"), o.optString("provider"),
-                o.optString("host"), o.optInt("port"), o.optString("protocol"))
+@Composable
+private fun Lab(host:String,onHost:(String)->Unit,port:String,onPort:(String)->Unit,result:String,busy:Boolean,test:()->Unit) {
+    Column(Modifier.fillMaxSize().padding(18.dp)) {
+        Text("مختبر الشبكة",fontSize=23.sp,fontWeight=FontWeight.Bold)
+        Text("اختبار DNS واتصال TCP لعنوان واحد في كل مرة.",color=Muted,fontSize=12.sp)
+        Spacer(Modifier.height(14.dp))
+        Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+            Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(host,onHost,label={Text("النطاق أو عنوان IP")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(port,onPort,label={Text("المنفذ")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                Button(onClick=test,enabled=!busy,modifier=Modifier.fillMaxWidth()) {
+                    if(busy) CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp) else Icon(Icons.Default.PlayArrow,null)
+                    Spacer(Modifier.width(8.dp));Text(if(busy)"جارٍ الاختبار..." else "ابدأ التشخيص")
+                }
+            }
         }
-    } catch (_: Exception) { emptyList() }
-
-    private fun saveProfiles(items: List<ServerProfile>) {
-        val a = JSONArray()
-        items.forEach { p -> a.put(JSONObject().apply {
-            put("id", p.id); put("name", p.name); put("provider", p.provider)
-            put("host", p.host); put("port", p.port); put("protocol", p.protocol)
-        }) }
-        prefs.edit().putString("profiles", a.toString()).apply()
+        Spacer(Modifier.height(14.dp))
+        Card(colors=CardDefaults.cardColors(containerColor=Color(0xFF101A2B))) {
+            Column(Modifier.padding(15.dp)){Text("نتيجة التشخيص",color=Teal,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Text(result,color=Color(0xFFD8E0EF),fontSize=12.sp,lineHeight=19.sp)}
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("استخدم المختبر فقط على أنظمة لديك تصريح بفحصها.",color=Muted,fontSize=10.sp)
     }
+}
 
-    private fun log(message: String) {
-        val stamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val old = prefs.getString("logs", "") ?: ""
-        val lines = (listOf("$stamp • $message") + old.lines().filter { it.isNotBlank() }).take(25)
-        prefs.edit().putString("logs", lines.joinToString("\n")).apply()
-        if (::logs.isInitialized) renderLogs()
+@Composable
+private fun More(update:String,check:()->Unit) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Text("المزيد",fontSize=23.sp,fontWeight=FontWeight.Bold) }
+        item { Info(Icons.Default.AutoAwesome,"مساعد الذكاء الاصطناعي","طبقة تشخيص أولية؛ ربط مزود AI يحتاج مفتاح API اختياري.") }
+        item { Info(Icons.Default.Sync,"الأتمتة","فحص الإصدارات وإدارة ملفات الإعدادات ضمن دورة عمل قابلة للتوسعة.") }
+        item { Info(Icons.Default.Security,"الأمان","لا تضع مفاتيح الخادم أو API في مستودع GitHub.") }
+        item { Info(Icons.Default.VpnKey,"محرك VPN","تكامل WireGuard/Xray الفعلي مرحلة لاحقة؛ لا يوجد نفق وهمي.") }
+        item { Button(onClick=check,modifier=Modifier.fillMaxWidth()){Text("فحص آخر إصدار")} }
+        item { Text(update,color=Muted,fontSize=11.sp) }
     }
+}
 
-    private fun renderLogs() {
-        logs.removeAllViews()
-        val lines = (prefs.getString("logs", "") ?: "").lines().filter { it.isNotBlank() }
-        if (lines.isEmpty()) logs.addView(text("لا توجد أحداث بعد.", 12, muted))
-        lines.forEach { line ->
-            val t = text(line, 12, muted)
-            t.setPadding(dp(10), dp(9), dp(10), dp(9))
-            t.background = shape(cardColor, 9)
-            logs.addView(t, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+@Composable
+private fun Info(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,body:String) {
+    Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+        Row(Modifier.fillMaxWidth().padding(15.dp),verticalAlignment=Alignment.Top) {
+            Icon(icon,null,tint=Teal);Spacer(Modifier.width(12.dp))
+            Column { Text(title,fontWeight=FontWeight.Bold);Text(body,color=Muted,fontSize=11.sp,lineHeight=17.sp) }
         }
     }
-
-    private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(14), dp(14), dp(14), dp(14))
-        background = shape(cardColor, 17)
-    }
-
-    private fun text(s: String, size: Int, color: Int, bold: Boolean = false) = TextView(this).apply {
-        text = s; textSize = size.toFloat(); setTextColor(color)
-        if (bold) setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-        textDirection = View.TEXT_DIRECTION_FIRST_STRONG
-    }
-
-    private fun button(s: String, color: Int) = Button(this).apply {
-        text = s; textSize = 13f; setTextColor(white); isAllCaps = false
-        background = shape(color, 12); minHeight = dp(46); minimumHeight = dp(46)
-        stateListAnimator = null
-        layoutParams = LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(5) }
-    }
-
-    private fun shape(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radius).toFloat()
-    }
-
-    private fun gap(h: Int) { root.addView(View(this), LinearLayout.LayoutParams(1, dp(h))) }
-    private fun gapIn(parent: LinearLayout, h: Int) { parent.addView(View(this), LinearLayout.LayoutParams(1, dp(h))) }
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 }

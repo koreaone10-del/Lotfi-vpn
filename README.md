@@ -1,17 +1,16 @@
-# Lotfi VPN Workspace Pro
+# LOTFI VPN — ULTIMATE
 
-A useful Arabic RTL Android workspace for managing VPN server profile metadata locally and viewing device network status.
+Android Kotlin + Jetpack Compose foundation: Arabic RTL dashboard, local server profile manager, authorized single-host DNS/TCP diagnostics, GitHub release check, custom vector icon and CI debug APK workflow.
 
-## Features
-- Dark Arabic RTL dashboard.
-- Create, edit and delete connection profiles.
-- Save profile metadata locally using SharedPreferences.
-- Show current Wi-Fi/mobile/ethernet connectivity.
-- Local activity log with clear action.
-- GitHub Actions debug APK build.
+## Important status
+This first version is **not yet a functioning VPN tunnel client**. It does not create a fake TUN connection. WireGuard/Xray engine integration is the next milestone and requires a real authorized server configuration and a verified engine adapter.
 
-## Important
-This is a **VPN profile manager/dashboard**, not an active VPN tunnel. The supplied source was incomplete and contained unsafe/nonfunctional scanning, payload-injection and packet-forwarding logic. Those components are not included. The app does not claim to connect or bypass carrier restrictions. A real VPN requires a properly implemented authorized protocol engine and a server you own or are permitted to use.
+No carrier-billing bypass, hidden-host exploitation, unauthorized port sweeps or payload injection is included. Diagnostics are intended for systems you own or are explicitly authorized to test.
 
 ## Build
-Android Gradle Plugin 8.7.3, Kotlin 2.0.21, compileSdk 35, JDK 17.
+Requires JDK 17, Android SDK Platform 35 and Gradle 8.9.
+Run: `gradle assembleDebug`
+APK: `app/build/outputs/apk/debug/app-debug.apk`
+
+GitHub Actions builds the debug APK on push or manual workflow dispatch.
+Repository: https://github.com/koreaone10-del/Lotfi-vpn
