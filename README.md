@@ -1,45 +1,17 @@
-# Lotfi VPN — Android Starter
+# Lotfi VPN Workspace Pro
 
-A clean, modular Android/Kotlin starter repository.
+A useful Arabic RTL Android workspace for managing VPN server profile metadata locally and viewing device network status.
 
-## Current scope
-- Native Android Activity and XML interface.
-- Clear package structure and resource naming.
-- Gradle build configuration.
-- GitHub Actions debug-build workflow.
-- No server scanner, payload injection, credential collection, or traffic-tunneling implementation is included.
+## Features
+- Dark Arabic RTL dashboard.
+- Create, edit and delete connection profiles.
+- Save profile metadata locally using SharedPreferences.
+- Show current Wi-Fi/mobile/ethernet connectivity.
+- Local activity log with clear action.
+- GitHub Actions debug APK build.
 
-## Requirements
-- Android Studio with JDK 17, or a compatible Android build environment.
-- Android SDK 35.
+## Important
+This is a **VPN profile manager/dashboard**, not an active VPN tunnel. The supplied source was incomplete and contained unsafe/nonfunctional scanning, payload-injection and packet-forwarding logic. Those components are not included. The app does not claim to connect or bypass carrier restrictions. A real VPN requires a properly implemented authorized protocol engine and a server you own or are permitted to use.
 
 ## Build
-```bash
-gradle :app:assembleDebug
-```
-
-The debug APK is generated at:
-`app/build/outputs/apk/debug/app-debug.apk`
-
-## Project structure
-```text
-Lotfi-vpn/
-├── .github/workflows/android-ci.yml
-├── app/
-│   ├── build.gradle
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/lotfi/vpn/
-│       │   ├── MainActivity.kt
-│       │   ├── data/ConnectionState.kt
-│       │   └── ui/StatusFormatter.kt
-│       └── res/
-│           ├── layout/activity_main.xml
-│           └── values/{strings.xml,colors.xml,styles.xml}
-├── build.gradle
-├── gradle.properties
-└── settings.gradle
-```
-
-## Notes
-`local.properties` is intentionally excluded because its Android SDK path is machine-specific.
+Android Gradle Plugin 8.7.3, Kotlin 2.0.21, compileSdk 35, JDK 17.
